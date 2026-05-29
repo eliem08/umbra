@@ -178,6 +178,26 @@ test matrix and self-scans the mock project, uploading SARIF — a working refer
 
 ---
 
+## Performance
+
+Scanning parses each source file exactly once and parallelizes across CPU cores
+for large codebases (above ~300 files), so scan time scales with the number of
+cores. Measured on real repositories (8-core machine):
+
+| Codebase | Source files | Wall time | Peak memory |
+|---|---:|---:|---:|
+| Django (full) | 1,008 | ~11 s | ~4 MB |
+| Home Assistant | 9,704 | ~19 s | ~10 MB |
+
+A typical single service (a few hundred files) scans in 2–5 s and runs serially.
+
+Tune or disable parallelism with the `SHADOW_SCAN_WORKERS` environment variable
+(e.g. `SHADOW_SCAN_WORKERS=1` forces serial; defaults to the CPU count). Vendor,
+build, and test directories (`node_modules`, `.venv`, `tests`, `target`, ...) are
+excluded by default.
+
+---
+
 ## Remote MCP Server Usage
 
 1. Start the Remote SSE MCP server:
