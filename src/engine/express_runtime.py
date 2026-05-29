@@ -40,7 +40,7 @@ def discover_express_routes(
     entry_path: str,
     auth_config: Optional[AuthConfig] = None,
     node_path: str = "node",
-    timeout: float = 30.0,
+    timeout: float = 60.0,
 ) -> List[RouteEndpoint]:
     """
     Run the Node introspector against an Express app entry file and return the
