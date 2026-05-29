@@ -16,7 +16,7 @@ from typing import Dict, List
 from .schemas import RouteEndpoint, ScannerReport
 
 TOOL_NAME = "umbra"
-TOOL_VERSION = "0.1.1"
+TOOL_VERSION = "0.1.2"
 INFO_URI = "https://github.com/eliem08/umbra"
 
 # Rule catalogue. `level` follows SARIF: error | warning | note.

@@ -143,67 +143,47 @@ def test_runtime_discovery_requires_node():
 
 
 # --------------------------------------------------------------------------- #
-# x402 payment gate
+# x402 payment gate (official x402 SDK integration)
 # --------------------------------------------------------------------------- #
-def _x402_app(verifier, **cfg_kw):
-    import base64, json as _json
-    from starlette.applications import Starlette
-    from starlette.responses import PlainTextResponse
-    from starlette.routing import Route
-    from fastapi.testclient import TestClient
-    from umbra.mcp.payments import X402Middleware, X402Config
-
-    async def ok(request):
-        return PlainTextResponse("served")
-
-    cfg = X402Config(enabled=True, pay_to="0xabc", facilitator_url="https://fac.example",
-                     protected_paths=("/sse",), **cfg_kw)
-    app = Starlette(routes=[Route("/sse", ok)])
-    app.add_middleware(X402Middleware, config=cfg, verifier=verifier)
-    return TestClient(app), base64, _json
+def test_x402_config_defaults(monkeypatch):
+    from umbra.mcp.payments import X402Config, DEFAULT_FACILITATOR, DEFAULT_NETWORK
+    for var in ("UMBRA_X402_ENABLED", "UMBRA_X402_PAY_TO", "UMBRA_X402_NETWORK",
+                "UMBRA_X402_PRICE", "UMBRA_X402_FACILITATOR"):
+        monkeypatch.delenv(var, raising=False)
+    cfg = X402Config.from_env()
+    assert cfg.enabled is False
+    assert cfg.facilitator_url == DEFAULT_FACILITATOR        # https://x402.org/facilitator
+    assert cfg.network == DEFAULT_NETWORK                    # eip155:84532 (Base Sepolia)
+    assert cfg.price == "$0.001"
+    assert "GET /sse" in cfg.protected and "POST /messages" in cfg.protected
 
 
-def test_x402_requires_payment_then_allows():
-    # Verifier stub: valid only when payload says so (no wallet/facilitator needed).
-    def verifier(payload, reqs, cfg):
-        return {"isValid": payload.get("ok") is True, "payer": "0xpayer"}
+def test_x402_disabled_is_noop():
+    """Disabled gate never touches the app (returns False without adding middleware)."""
+    from umbra.mcp.payments import apply_x402, X402Config
 
-    client, b64, js = _x402_app(verifier)
+    class _NoApp:
+        def add_middleware(self, *a, **k):
+            raise AssertionError("add_middleware must not be called when disabled")
 
-    # 1. No X-PAYMENT -> 402 with accepts describing the payment.
-    r = client.get("/sse")
-    assert r.status_code == 402
-    body = r.json()
-    assert body["x402Version"] == 1
-    assert body["accepts"][0]["payTo"] == "0xabc"
-    assert body["accepts"][0]["asset"] == "USDC"
-
-    # 2. Invalid payment -> 402.
-    bad = b64.b64encode(js.dumps({"ok": False}).encode()).decode()
-    assert client.get("/sse", headers={"X-PAYMENT": bad}).status_code == 402
-
-    # 3. Valid payment -> served, with settlement header.
-    good = b64.b64encode(js.dumps({"ok": True}).encode()).decode()
-    r3 = client.get("/sse", headers={"X-PAYMENT": good})
-    assert r3.status_code == 200
-    assert r3.text == "served"
-    assert "X-PAYMENT-RESPONSE" in r3.headers
+    assert apply_x402(_NoApp(), X402Config(enabled=False)) is False
 
 
-def test_x402_disabled_by_default():
-    """With enabled=False the gate is a no-op."""
-    def verifier(payload, reqs, cfg):
-        return {"isValid": False}
-    client, _, _ = _x402_app(verifier)
-    # Re-create with enabled False via env-style config:
-    from starlette.applications import Starlette
-    from starlette.responses import PlainTextResponse
-    from starlette.routing import Route
-    from fastapi.testclient import TestClient
-    from umbra.mcp.payments import X402Middleware, X402Config
-    app = Starlette(routes=[Route("/sse", lambda r: PlainTextResponse("served"))])
-    app.add_middleware(X402Middleware, config=X402Config(enabled=False), verifier=verifier)
-    assert TestClient(app).get("/sse").status_code == 200
+def test_x402_enabled_without_payto_fails_closed():
+    """Enabling payments without a payTo must raise (never serve paid content free)."""
+    from umbra.mcp.payments import apply_x402, X402Config
+    with pytest.raises(ValueError):
+        apply_x402(object(), X402Config(enabled=True, pay_to=""))
+
+
+def test_x402_enabled_requires_sdk_when_absent():
+    """With a payTo set but the optional SDK missing, surface a clear install error."""
+    import importlib.util
+    from umbra.mcp.payments import apply_x402, X402Config, X402NotInstalled
+    if importlib.util.find_spec("x402") is not None:
+        pytest.skip("x402 SDK is installed; skipping the missing-dependency path")
+    with pytest.raises(X402NotInstalled):
+        apply_x402(object(), X402Config(enabled=True, pay_to="0xabc"))
 
 
 # --------------------------------------------------------------------------- #

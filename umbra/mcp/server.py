@@ -430,11 +430,12 @@ app.add_middleware(
 # Apply Token Verification Middleware
 app.add_middleware(TokenAuthMiddleware)
 
-# Optional x402 payment gate (monetize per-call MCP access). No-op unless
-# UMBRA_X402_ENABLED is set. Added after TokenAuth so it runs first on the
-# request path: pay, then authenticate.
-from umbra.mcp.payments import X402Middleware  # noqa: E402
-app.add_middleware(X402Middleware)
+# Optional x402 payment gate (monetize per-call MCP access) via the official
+# x402 SDK. No-op unless UMBRA_X402_ENABLED is set. Added after TokenAuth so it
+# runs first on the request path: pay, then authenticate. Requires the optional
+# dependency: pip install "umbra-scan[x402]".
+from umbra.mcp.payments import apply_x402  # noqa: E402
+apply_x402(app)
 
 # Initialize SSE Transport
 # POST requests go to /messages

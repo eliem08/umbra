@@ -221,23 +221,36 @@ excluded by default.
 
 ## Monetizing MCP access with x402
 
-Umbra ships an optional [x402](https://x402.org) payment gate so you can charge
-per call for hosted MCP access (HTTP 402 → pay → retry with `X-PAYMENT`). It is
-**off by default**; enable it with environment variables:
+Umbra ships an optional [x402](https://x402.org) payment gate (built on the
+official `x402` SDK) so you can charge per call for hosted MCP access. It is
+**off by default**. Install the extra and enable it via env:
 
 ```bash
-$env:UMBRA_X402_ENABLED="true"
-$env:UMBRA_X402_PAY_TO="0xYourReceivingWallet"     # required
-$env:UMBRA_X402_FACILITATOR="https://your-x402-facilitator"  # verifies/settles
-$env:UMBRA_X402_NETWORK="base"                     # e.g. base / base-sepolia
-$env:UMBRA_X402_AMOUNT="10000"                     # smallest unit (USDC: 10000 = 0.01)
+pip install "umbra-scan[x402]"
 ```
 
-When enabled, unpaid requests to `/sse` and `/messages` get a `402` with the
-payment requirements; paid requests (verified via your facilitator) are served
-with an `X-PAYMENT-RESPONSE` settlement header. The wallet and facilitator are
-**your** accounts — Umbra never hardcodes credentials, and the gate fails closed
-if `payTo` is unset. See [umbra/mcp/payments.py](umbra/mcp/payments.py).
+```bash
+# testnet (Base Sepolia) — the public facilitator needs no API key
+$env:UMBRA_X402_ENABLED="true"
+$env:UMBRA_X402_PAY_TO="0xYourReceivingWallet"                 # required (EVM address)
+$env:UMBRA_X402_FACILITATOR="https://x402.org/facilitator"     # default; testnet
+$env:UMBRA_X402_NETWORK="eip155:84532"                         # Base Sepolia (CAIP-2)
+$env:UMBRA_X402_PRICE="$0.001"                                 # per call
+```
+
+For **Base mainnet**, switch the network to `eip155:8453` and the facilitator to a
+production one (e.g. Coinbase CDP `https://api.cdp.coinbase.com/platform/v2/x402`).
+
+When enabled, unpaid requests to `/sse` and `/messages` get an HTTP `402` with
+x402 payment requirements; the buyer's x402 client pays and retries, the official
+middleware verifies/settles via the facilitator, and the request is served. The
+wallet and facilitator are **your** accounts — Umbra hardcodes no credentials,
+and the gate **fails closed** if `payTo` is unset. See
+[umbra/mcp/payments.py](umbra/mcp/payments.py).
+
+> Note: this gates the HTTP transport (x402 protocol level). Fine-grained
+> *per-tool* MCP billing (via the TypeScript `@x402/mcp` wrapper) is a future
+> addition for the Python server.
 
 ---
 

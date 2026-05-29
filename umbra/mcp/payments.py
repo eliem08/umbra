@@ -1,165 +1,112 @@
 """
-x402 payment gate for the Umbra MCP server.
+x402 payment gate for the Umbra MCP server, built on the official x402 SDK.
 
 x402 (https://x402.org) turns HTTP 402 "Payment Required" into a real payment
-handshake for agentic/API access:
+handshake for agentic/API access. This module attaches the official x402 FastAPI
+middleware to the MCP HTTP endpoints so you can charge per call for hosted
+access. It is OFF by default and only activates when configured via env, so it
+never affects self-hosted/free usage.
 
-  1. Client calls a protected endpoint with no payment.
-  2. Server replies 402 with a JSON body describing accepted payments
-     (`accepts`: scheme, network, amount, asset, payTo, ...).
-  3. Client pays and retries with an `X-PAYMENT` header (base64 JSON payload).
-  4. Server verifies the payment with a *facilitator* (and optionally settles),
-     then serves the resource and returns an `X-PAYMENT-RESPONSE` header.
+Install the optional dependency to use it:
 
-This lets Umbra monetize per-call access to the hosted MCP (e.g. a scan costs N
-USDC). It is OFF by default and only activates when configured via env, so it
-does not affect self-hosted/free usage or the existing test suite.
+    pip install "umbra-scan[x402]"
 
-PRODUCTION SEAMS (require your accounts/keys, not hardcoded here):
-  - UMBRA_X402_PAY_TO     : the wallet address that receives payment.
-  - UMBRA_X402_FACILITATOR: a facilitator base URL that verifies/settles
-                            payments (e.g. Coinbase's x402 facilitator). Without
-                            it the gate fails closed.
+Configuration (env):
+    UMBRA_X402_ENABLED      "true" to enable (default off).
+    UMBRA_X402_PAY_TO       your receiving wallet address (required when enabled).
+    UMBRA_X402_FACILITATOR  facilitator base URL. Default https://x402.org/facilitator
+                            (Base Sepolia + Solana devnet, no API key). For Base
+                            mainnet use https://api.cdp.coinbase.com/platform/v2/x402
+                            (Coinbase CDP) or another production facilitator.
+    UMBRA_X402_NETWORK      CAIP-2 network id. Default eip155:84532 (Base Sepolia).
+                            Base mainnet is eip155:8453.
+    UMBRA_X402_PRICE        price per call, e.g. "$0.001" (default).
+
+NOTE on MCP: this gates the HTTP transport endpoints (/sse, /messages) at the
+x402 protocol level. Fine-grained *per-tool* MCP billing is provided upstream by
+the TypeScript `@x402/mcp` wrapper; a Python equivalent is a future addition.
 """
 from __future__ import annotations
 
-import base64
-import json
 import os
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from typing import Dict, Optional
 
-import httpx
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
+DEFAULT_FACILITATOR = "https://x402.org/facilitator"  # testnet, no API key
+DEFAULT_NETWORK = "eip155:84532"  # Base Sepolia (CAIP-2); mainnet is eip155:8453
 
-X402_VERSION = 1
+
+class X402NotInstalled(RuntimeError):
+    """Raised when x402 is enabled but the optional `x402` package isn't installed."""
 
 
 @dataclass
 class X402Config:
     enabled: bool = False
     pay_to: str = ""
-    network: str = "base-sepolia"
-    asset: str = "USDC"
-    # Price in the asset's smallest unit as a string (e.g. USDC has 6 decimals,
-    # so "10000" == 0.01 USDC). x402 amounts are integer strings.
-    max_amount_required: str = "10000"
-    facilitator_url: str = ""
-    scheme: str = "exact"
-    max_timeout_seconds: int = 60
-    description: str = "Umbra MCP access"
-    protected_paths: tuple = ("/sse", "/messages")
+    network: str = DEFAULT_NETWORK
+    price: str = "$0.001"
+    facilitator_url: str = DEFAULT_FACILITATOR
+    # MCP transport routes to protect, mapped to human descriptions.
+    protected: Dict[str, str] = field(default_factory=lambda: {
+        "GET /sse": "Umbra MCP event stream",
+        "POST /messages": "Umbra MCP tool call",
+    })
 
     @classmethod
     def from_env(cls) -> "X402Config":
         return cls(
             enabled=os.environ.get("UMBRA_X402_ENABLED", "").lower() in ("1", "true", "yes"),
             pay_to=os.environ.get("UMBRA_X402_PAY_TO", "").strip(),
-            network=os.environ.get("UMBRA_X402_NETWORK", "base-sepolia").strip(),
-            asset=os.environ.get("UMBRA_X402_ASSET", "USDC").strip(),
-            max_amount_required=os.environ.get("UMBRA_X402_AMOUNT", "10000").strip(),
-            facilitator_url=os.environ.get("UMBRA_X402_FACILITATOR", "").rstrip("/"),
-            description=os.environ.get("UMBRA_X402_DESCRIPTION", "Umbra MCP access"),
+            network=os.environ.get("UMBRA_X402_NETWORK", DEFAULT_NETWORK).strip(),
+            price=os.environ.get("UMBRA_X402_PRICE", "$0.001").strip(),
+            facilitator_url=os.environ.get("UMBRA_X402_FACILITATOR", DEFAULT_FACILITATOR).strip().rstrip("/"),
         )
 
 
-def payment_requirements(cfg: X402Config, resource: str) -> Dict:
-    """Build a single x402 payment-requirements object for a resource."""
-    return {
-        "scheme": cfg.scheme,
-        "network": cfg.network,
-        "maxAmountRequired": cfg.max_amount_required,
-        "resource": resource,
-        "description": cfg.description,
-        "mimeType": "application/json",
-        "payTo": cfg.pay_to,
-        "maxTimeoutSeconds": cfg.max_timeout_seconds,
-        "asset": cfg.asset,
+def apply_x402(app, config: Optional[X402Config] = None) -> bool:
+    """
+    Attach the official x402 payment middleware to a FastAPI/Starlette `app`.
+
+    Returns True if the gate was attached, False if disabled (no-op). Raises
+    ValueError if enabled without a payTo (fail closed — never serve paid content
+    for free by accident), and X402NotInstalled if the optional SDK is missing.
+    """
+    cfg = config or X402Config.from_env()
+    if not cfg.enabled:
+        return False
+    if not cfg.pay_to:
+        raise ValueError(
+            "UMBRA_X402_ENABLED is set but UMBRA_X402_PAY_TO is empty. "
+            "Set your receiving wallet address (fail-closed)."
+        )
+
+    try:
+        from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
+        from x402.http.middleware.fastapi import PaymentMiddlewareASGI
+        from x402.http.types import RouteConfig
+        from x402.mechanisms.evm.exact import ExactEvmServerScheme
+        from x402.server import x402ResourceServer
+    except ImportError as e:  # pragma: no cover - depends on optional dep
+        raise X402NotInstalled(
+            'x402 payments require the optional dependency. Install with: '
+            'pip install "umbra-scan[x402]"'
+        ) from e
+
+    facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=cfg.facilitator_url))
+    server = x402ResourceServer(facilitator)
+    server.register(cfg.network, ExactEvmServerScheme())
+
+    routes = {
+        route: RouteConfig(
+            accepts=[PaymentOption(
+                scheme="exact", pay_to=cfg.pay_to, price=cfg.price, network=cfg.network,
+            )],
+            mime_type="application/json",
+            description=desc,
+        )
+        for route, desc in cfg.protected.items()
     }
 
-
-def _payment_required_response(cfg: X402Config, resource: str, error: str) -> JSONResponse:
-    return JSONResponse(
-        status_code=402,
-        content={
-            "x402Version": X402_VERSION,
-            "accepts": [payment_requirements(cfg, resource)],
-            "error": error,
-        },
-    )
-
-
-def _decode_payment_header(value: str) -> Optional[Dict]:
-    try:
-        return json.loads(base64.b64decode(value).decode("utf-8"))
-    except Exception:
-        return None
-
-
-# A verifier takes (payment_payload, requirements) and returns a dict like
-# {"isValid": bool, "payer": str, ...}. The default calls a facilitator; tests
-# inject a stub so no network/wallet is needed.
-Verifier = Callable[[Dict, Dict, X402Config], Dict]
-
-
-def facilitator_verifier(payload: Dict, requirements: Dict, cfg: X402Config) -> Dict:
-    if not cfg.facilitator_url:
-        return {"isValid": False, "error": "no facilitator configured"}
-    try:
-        with httpx.Client(timeout=10.0) as client:
-            resp = client.post(
-                f"{cfg.facilitator_url}/verify",
-                json={
-                    "x402Version": X402_VERSION,
-                    "paymentPayload": payload,
-                    "paymentRequirements": requirements,
-                },
-            )
-            resp.raise_for_status()
-            return resp.json()
-    except Exception as e:
-        return {"isValid": False, "error": f"facilitator verify failed: {e}"}
-
-
-class X402Middleware(BaseHTTPMiddleware):
-    """Enforces x402 payment on configured paths. No-op unless enabled."""
-
-    def __init__(self, app, config: Optional[X402Config] = None, verifier: Optional[Verifier] = None):
-        super().__init__(app)
-        self.config = config or X402Config.from_env()
-        self.verifier = verifier or facilitator_verifier
-
-    async def dispatch(self, request: Request, call_next):
-        cfg = self.config
-        if not cfg.enabled or request.url.path not in cfg.protected_paths:
-            return await call_next(request)
-
-        resource = str(request.url)
-
-        # Fail closed if misconfigured — never serve paid content for free by accident.
-        if not cfg.pay_to:
-            return _payment_required_response(cfg, resource, "payment not configured (missing payTo)")
-
-        header = request.headers.get("x-payment")
-        if not header:
-            return _payment_required_response(cfg, resource, "X-PAYMENT header is required")
-
-        payload = _decode_payment_header(header)
-        if payload is None:
-            return _payment_required_response(cfg, resource, "malformed X-PAYMENT header")
-
-        result = self.verifier(payload, payment_requirements(cfg, resource), cfg)
-        if not result.get("isValid"):
-            return _payment_required_response(
-                cfg, resource, result.get("error", "payment verification failed")
-            )
-
-        response = await call_next(request)
-        # Surface settlement info to the client per the x402 spec.
-        settlement = {"success": True, "payer": result.get("payer"), "network": cfg.network}
-        response.headers["X-PAYMENT-RESPONSE"] = base64.b64encode(
-            json.dumps(settlement).encode("utf-8")
-        ).decode("utf-8")
-        return response
+    app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
+    return True
