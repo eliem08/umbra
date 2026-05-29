@@ -396,6 +396,16 @@ def test_git_inspector_rejects_non_repo(tmp_path):
 # --------------------------------------------------------------------------- #
 # MCP server hardening
 # --------------------------------------------------------------------------- #
+def test_mcp_health_root_unauthenticated(monkeypatch):
+    """GET / returns 200 without a token (Apify Standby readiness probe)."""
+    from fastapi.testclient import TestClient
+    import umbra.mcp.server as srv
+    monkeypatch.setenv("SHADOW_SCAN_TOKEN", "x")  # token set, but / is unprotected
+    r = TestClient(srv.app).get("/")
+    assert r.status_code == 200
+    assert r.json()["service"] == "umbra-mcp"
+
+
 def test_mcp_token_helpers(monkeypatch):
     import umbra.mcp.server as srv
 

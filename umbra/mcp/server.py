@@ -444,6 +444,17 @@ sse = SseServerTransport("/messages")
 # Mount messages post handler
 app.router.routes.append(Mount("/messages", app=sse.handle_post_message))
 
+
+@app.get("/")
+async def health(request: Request):
+    """Unauthenticated health/readiness endpoint (used by Apify Standby probes)."""
+    return JSONResponse({
+        "service": "umbra-mcp",
+        "status": "ok",
+        "endpoints": {"sse": "/sse", "messages": "/messages"},
+    })
+
+
 @app.get("/sse")
 async def handle_sse(request: Request):
     """
