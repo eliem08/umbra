@@ -134,6 +134,50 @@ shadow-scan --path ./services/api --openapi ./openapi.json --express-entry ./ser
 
 ---
 
+## CI/CD Integration
+
+### GitHub Action
+
+Drop the scanner into a workflow; findings appear inline on PRs via code scanning:
+
+```yaml
+# .github/workflows/shadow-scan.yml
+name: Shadow API Scan
+on: [pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # required to upload SARIF
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: your-org/shadow-api-scanner@v0.1.0
+        with:
+          path: ./src
+          openapi: ./openapi.json
+          strict: "true"
+          # since: "origin/${{ github.base_ref }}"   # gate only this PR's new endpoints
+          # new-only: "true"
+```
+
+### Pre-commit hook
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/your-org/shadow-api-scanner
+    rev: v0.1.0
+    hooks:
+      - id: shadow-scan
+        args: ["--path", ".", "--openapi", "openapi.json", "--strict"]
+```
+
+The repository's own CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the
+test matrix and self-scans the mock project, uploading SARIF — a working reference.
+
+---
+
 ## Remote MCP Server Usage
 
 1. Start the Remote SSE MCP server:

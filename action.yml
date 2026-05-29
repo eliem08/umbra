@@ -1,0 +1,94 @@
+name: "Shadow API Scanner"
+description: "Find undocumented shadow endpoints and missing authentication across FastAPI, Flask, Spring Boot, and Express. Emits SARIF for code scanning."
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  path:
+    description: "Directory or file to scan."
+    required: false
+    default: "."
+  openapi:
+    description: "Path/URL/JSON of the production openapi.json to compare against."
+    required: true
+  strict:
+    description: "Fail the job (exit 1) if violations are found."
+    required: false
+    default: "true"
+  since:
+    description: "Only treat endpoints introduced in this git window as new (e.g. '1 week ago', 'origin/main')."
+    required: false
+    default: ""
+  new-only:
+    description: "With 'since', gate only on endpoints introduced in the window."
+    required: false
+    default: "false"
+  express-entry:
+    description: "Express app entry file to enable runtime-assisted discovery."
+    required: false
+    default: ""
+  config:
+    description: "Path to a .shadowscan.yml/.json auth-detection config."
+    required: false
+    default: ""
+  sarif-file:
+    description: "Path to write the SARIF report."
+    required: false
+    default: "shadow-scan.sarif"
+  upload-sarif:
+    description: "Upload the SARIF report to GitHub code scanning."
+    required: false
+    default: "true"
+  python-version:
+    description: "Python version to use."
+    required: false
+    default: "3.12"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Set up Node.js (for runtime Express discovery)
+      if: inputs.express-entry != ''
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install Shadow API Scanner
+      shell: bash
+      run: pip install "${{ github.action_path }}"
+
+    - name: Run scan
+      id: scan
+      shell: bash
+      run: |
+        set +e
+        args=(--path "${{ inputs.path }}" --openapi "${{ inputs.openapi }}" \
+              --format sarif --output "${{ inputs.sarif-file }}")
+        [ "${{ inputs.strict }}" = "true" ] && args+=(--strict)
+        [ -n "${{ inputs.since }}" ] && args+=(--since "${{ inputs.since }}")
+        [ "${{ inputs.new-only }}" = "true" ] && args+=(--new-only)
+        [ -n "${{ inputs.express-entry }}" ] && args+=(--express-entry "${{ inputs.express-entry }}")
+        [ -n "${{ inputs.config }}" ] && args+=(--config "${{ inputs.config }}")
+        shadow-scan "${args[@]}"
+        echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF to code scanning
+      if: ${{ always() && inputs.upload-sarif == 'true' && hashFiles(inputs.sarif-file) != '' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+        category: shadow-api-scanner
+
+    - name: Enforce gate
+      shell: bash
+      run: |
+        if [ "${{ steps.scan.outputs.exit_code }}" != "0" ]; then
+          echo "::error::Shadow API Scanner found policy violations."
+          exit "${{ steps.scan.outputs.exit_code }}"
+        fi

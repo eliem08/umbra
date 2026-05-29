@@ -1,0 +1,16 @@
+# Allows other repos to use this scanner as a pre-commit hook:
+#
+#   - repo: https://github.com/your-org/shadow-api-scanner
+#     rev: v0.1.0
+#     hooks:
+#       - id: shadow-scan
+#         args: ["--path", ".", "--openapi", "openapi.json", "--strict"]
+#
+# (override `args` to point at your codebase and OpenAPI spec).
+- id: shadow-scan
+  name: Shadow API Scanner
+  description: Block commits that introduce undocumented or unauthenticated endpoints.
+  entry: shadow-scan
+  language: python
+  pass_filenames: false
+  always_run: true
