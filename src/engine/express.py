@@ -60,14 +60,19 @@ def _logical_lines(text: str) -> List[Tuple[int, str]]:
     while i < len(lines):
         start_line = i + 1
         buf = lines[i]
+        bal = buf.count("(") - buf.count(")")  # incremental: count each line once, not the whole buffer
         while i + 1 < len(lines):
             nxt = lines[i + 1].strip()
-            if buf.count("(") > buf.count(")"):
+            if bal > 0:
                 i += 1
-                buf += " " + lines[i].strip()
+                add = lines[i].strip()
+                buf += " " + add
+                bal += add.count("(") - add.count(")")
             elif nxt.startswith("."):
                 i += 1
-                buf = buf.rstrip() + lines[i].strip()
+                add = lines[i].strip()
+                buf = buf.rstrip() + add
+                bal += add.count("(") - add.count(")")
             else:
                 break
         out.append((start_line, buf.strip()))
@@ -135,15 +140,17 @@ class ExpressParser:
     def _iter_js_files(self):
         yield from iter_source_files(self.base_dir, JS_EXTENSIONS, self.exclude_dirs)
 
-    def parse_directory(self) -> ScanResult:
-        self._prescan_mounts()
+    def parse_directory(self, files: Optional[List[Tuple[str, str]]] = None) -> ScanResult:
+        if files is None:
+            files = list(self._iter_js_files())
+        self._prescan_mounts(files)
         endpoints: List[RouteEndpoint] = []
-        for full, rel in self._iter_js_files():
+        for full, rel in files:
             endpoints.extend(self.parse_file(full, rel))
         return ScanResult(routes=endpoints)
 
-    def _prescan_mounts(self) -> None:
-        for full, _ in self._iter_js_files():
+    def _prescan_mounts(self, files: List[Tuple[str, str]]) -> None:
+        for full, _ in files:
             try:
                 with open(full, "r", encoding="utf-8") as f:
                     text = f.read()

@@ -52,17 +52,19 @@ class ASTParser:
         self.auth_config = auth_config or AuthConfig()
         self.exclude_dirs = DEFAULT_EXCLUDE_DIRS if exclude_dirs is None else exclude_dirs
 
-    def parse_directory(self) -> ScanResult:
+    def parse_directory(self, files: Optional[List[Tuple[str, str]]] = None) -> ScanResult:
         """
-        Recursively searches the base directory and parses all Python files.
+        Parse all Python files under the base dir (or a precomputed (full, rel) list).
         """
-        self.prefix_map, self.auth_aliases = self.pre_scan()
+        if files is None:
+            files = list(iter_source_files(self.base_dir, (".py",), self.exclude_dirs))
+        self.prefix_map, self.auth_aliases = self.pre_scan(files)
         endpoints: List[RouteEndpoint] = []
-        for full_path, rel_path in iter_source_files(self.base_dir, (".py",), self.exclude_dirs):
+        for full_path, rel_path in files:
             endpoints.extend(self.parse_file(full_path, rel_path))
         return ScanResult(routes=endpoints)
 
-    def pre_scan(self) -> Tuple[dict, Set[str]]:
+    def pre_scan(self, files: Optional[List[Tuple[str, str]]] = None) -> Tuple[dict, Set[str]]:
         """
         Scans the tree for cross-file signals:
           - APIRouter/Blueprint `prefix=`/`url_prefix=` on include_router/register_blueprint
@@ -70,10 +72,12 @@ class ASTParser:
             auth-dependency aliases (e.g. FastAPI's `CurrentUser`), so a parameter merely
             *annotated* with that alias is recognized as authenticated.
         """
+        if files is None:
+            files = list(iter_source_files(self.base_dir, (".py",), self.exclude_dirs))
         prefix_map: dict = {}
         auth_aliases: Set[str] = set()
 
-        for full_path, _ in iter_source_files(self.base_dir, (".py",), self.exclude_dirs):
+        for full_path, _ in files:
             try:
                 with open(full_path, "r", encoding="utf-8") as f:
                     source = f.read()
@@ -94,10 +98,11 @@ class ASTParser:
                                     if kw.arg == prefix_kw and isinstance(kw.value, ast.Constant):
                                         prefix_map[var_name] = str(kw.value.value)
                                         break
-                # Auth-dependency aliases: NAME = Annotated[...] / Depends(...) / Security(...)
+                # Auth-dependency aliases: NAME = Annotated[...] / Depends(...) / Security(...).
+                # Only unparse Call/Subscript RHS — never giant dict/list/str literals.
                 elif isinstance(node, ast.Assign) and len(node.targets) == 1:
                     target = node.targets[0]
-                    if isinstance(target, ast.Name):
+                    if isinstance(target, ast.Name) and isinstance(node.value, (ast.Call, ast.Subscript)):
                         try:
                             rhs = ast.unparse(node.value)
                         except Exception:
@@ -106,23 +111,6 @@ class ASTParser:
                             auth_aliases.add(target.id)
 
         return prefix_map, auth_aliases
-
-    def _local_constructor_prefixes(self, tree: ast.AST) -> dict:
-        """
-        Detect file-local router/blueprint prefixes declared on the constructor, e.g.
-        `router = APIRouter(prefix="/items")` or `bp = Blueprint(..., url_prefix="/x")`.
-        Kept file-local because the variable name (often just `router`) collides across files.
-        """
-        local: dict = {}
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-                if isinstance(node.value, ast.Call):
-                    ctor = self._get_name_str(node.value.func) or ""
-                    if ctor.endswith("APIRouter") or ctor.endswith("Blueprint"):
-                        for kw in node.value.keywords:
-                            if kw.arg in ("prefix", "url_prefix") and isinstance(kw.value, ast.Constant):
-                                local[node.targets[0].id] = str(kw.value.value)
-        return local
 
     def parse_file(self, filepath: str, rel_path: str) -> List[RouteEndpoint]:
         """
@@ -137,10 +125,14 @@ class ASTParser:
             # Silently skip unparseable files (e.g. syntax errors or empty files)
             return []
 
-        # Gather information about imports to help classify framework
+        # Single AST walk collecting everything we need: import flags (framework
+        # heuristic), file-local constructor prefixes (APIRouter(prefix="/x")), and
+        # the function definitions to examine. One walk instead of three.
         has_flask_import = False
         has_fastapi_import = False
-        
+        local_prefixes: dict = {}
+        func_nodes: List[ast.AST] = []
+
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for name in node.names:
@@ -154,15 +146,19 @@ class ASTParser:
                         has_flask_import = True
                     if "fastapi" in node.module:
                         has_fastapi_import = True
+            elif isinstance(node, ast.Assign) and len(node.targets) == 1 \
+                    and isinstance(node.targets[0], ast.Name) and isinstance(node.value, ast.Call):
+                ctor = self._get_name_str(node.value.func) or ""
+                if ctor.endswith("APIRouter") or ctor.endswith("Blueprint"):
+                    for kw in node.value.keywords:
+                        if kw.arg in ("prefix", "url_prefix") and isinstance(kw.value, ast.Constant):
+                            local_prefixes[node.targets[0].id] = str(kw.value.value)
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.decorator_list:
+                func_nodes.append(node)
 
-        # File-local router/blueprint constructor prefixes (e.g. APIRouter(prefix="/items")).
-        local_prefixes = self._local_constructor_prefixes(tree)
-
-        # Search for function and class method definitions
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                if not node.decorator_list:
-                    continue
+        # Examine the collected route-handler candidates.
+        for node in func_nodes:
+            if True:
 
                 # Scan decorators to identify if this function is a route handler
                 route_decorators: List[Tuple[ast.AST, str, str, str]] = [] # (decorator, caller, attribute/name, path)

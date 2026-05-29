@@ -52,10 +52,12 @@ def _logical_lines(text: str) -> List[Tuple[int, str]]:
     while i < len(lines):
         start_line = i + 1
         buf = lines[i]
-        # Join continuation lines while parentheses are unbalanced.
-        while buf.count("(") > buf.count(")") and i + 1 < len(lines):
+        bal = buf.count("(") - buf.count(")")  # incremental balance, count each line once
+        while bal > 0 and i + 1 < len(lines):
             i += 1
-            buf += " " + lines[i].strip()
+            add = lines[i].strip()
+            buf += " " + add
+            bal += add.count("(") - add.count(")")
         out.append((start_line, buf.strip()))
         i += 1
     return out
@@ -91,9 +93,11 @@ class SpringParser:
         self.auth_config = auth_config or AuthConfig()
         self.exclude_dirs = DEFAULT_EXCLUDE_DIRS if exclude_dirs is None else exclude_dirs
 
-    def parse_directory(self) -> ScanResult:
+    def parse_directory(self, files: Optional[List[Tuple[str, str]]] = None) -> ScanResult:
+        if files is None:
+            files = list(iter_source_files(self.base_dir, (".java",), self.exclude_dirs))
         endpoints: List[RouteEndpoint] = []
-        for full_path, rel_path in iter_source_files(self.base_dir, (".java",), self.exclude_dirs):
+        for full_path, rel_path in files:
             endpoints.extend(self.parse_file(full_path, rel_path))
         return ScanResult(routes=endpoints)
 
