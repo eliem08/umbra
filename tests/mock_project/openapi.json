@@ -1,0 +1,35 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Mock API Specification",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/users/{id}": {
+      "get": {
+        "summary": "Retrieve user details",
+        "security": [
+          {
+            "OAuth2": []
+          }
+        ]
+      }
+    },
+    "/healthz": {
+      "get": {
+        "summary": "API Health status",
+        "security": []
+      }
+    },
+    "/api/v1/items": {
+      "get": {
+        "summary": "List inventory items"
+      }
+    },
+    "/info": {
+      "get": {
+        "summary": "Flask Public Info Endpoint"
+      }
+    }
+  }
+}

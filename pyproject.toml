@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shadow-api-scanner"
+version = "0.1.0"
+description = "A production-grade Shadow API Scanner for FastAPI, Flask, Spring Boot, and Express"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "DevSecOps Architect" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pydantic>=2.0.0,<3.0.0",
+    "mcp>=0.1.0",
+    "fastmcp>=0.1.0",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "httpx>=0.24.0",
+    "fastapi>=0.100.0",
+    "flask>=2.3.0",
+    "uvicorn>=0.22.0",
+    "pyyaml>=6.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0"
+]
+
+[project.scripts]
+shadow-scan = "src.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"src.engine.runtime" = ["*.js"]
