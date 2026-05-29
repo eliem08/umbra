@@ -3,13 +3,14 @@ requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "shadow-api-scanner"
+name = "umbra-scan"
 version = "0.1.0"
-description = "A production-grade Shadow API Scanner for FastAPI, Flask, Spring Boot, and Express"
+description = "Umbra — hunt shadow APIs and missing auth across FastAPI, Flask, Spring Boot, and Express"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "Elastic-2.0"
 authors = [
-    { name = "DevSecOps Architect" }
+    { name = "eliem08" }
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -36,6 +37,7 @@ dev = [
 ]
 
 [project.scripts]
+umbra = "src.cli.main:main"
 shadow-scan = "src.cli.main:main"
 
 [tool.setuptools.packages.find]

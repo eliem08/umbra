@@ -143,6 +143,70 @@ def test_runtime_discovery_requires_node():
 
 
 # --------------------------------------------------------------------------- #
+# x402 payment gate
+# --------------------------------------------------------------------------- #
+def _x402_app(verifier, **cfg_kw):
+    import base64, json as _json
+    from starlette.applications import Starlette
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from fastapi.testclient import TestClient
+    from src.mcp.payments import X402Middleware, X402Config
+
+    async def ok(request):
+        return PlainTextResponse("served")
+
+    cfg = X402Config(enabled=True, pay_to="0xabc", facilitator_url="https://fac.example",
+                     protected_paths=("/sse",), **cfg_kw)
+    app = Starlette(routes=[Route("/sse", ok)])
+    app.add_middleware(X402Middleware, config=cfg, verifier=verifier)
+    return TestClient(app), base64, _json
+
+
+def test_x402_requires_payment_then_allows():
+    # Verifier stub: valid only when payload says so (no wallet/facilitator needed).
+    def verifier(payload, reqs, cfg):
+        return {"isValid": payload.get("ok") is True, "payer": "0xpayer"}
+
+    client, b64, js = _x402_app(verifier)
+
+    # 1. No X-PAYMENT -> 402 with accepts describing the payment.
+    r = client.get("/sse")
+    assert r.status_code == 402
+    body = r.json()
+    assert body["x402Version"] == 1
+    assert body["accepts"][0]["payTo"] == "0xabc"
+    assert body["accepts"][0]["asset"] == "USDC"
+
+    # 2. Invalid payment -> 402.
+    bad = b64.b64encode(js.dumps({"ok": False}).encode()).decode()
+    assert client.get("/sse", headers={"X-PAYMENT": bad}).status_code == 402
+
+    # 3. Valid payment -> served, with settlement header.
+    good = b64.b64encode(js.dumps({"ok": True}).encode()).decode()
+    r3 = client.get("/sse", headers={"X-PAYMENT": good})
+    assert r3.status_code == 200
+    assert r3.text == "served"
+    assert "X-PAYMENT-RESPONSE" in r3.headers
+
+
+def test_x402_disabled_by_default():
+    """With enabled=False the gate is a no-op."""
+    def verifier(payload, reqs, cfg):
+        return {"isValid": False}
+    client, _, _ = _x402_app(verifier)
+    # Re-create with enabled False via env-style config:
+    from starlette.applications import Starlette
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from fastapi.testclient import TestClient
+    from src.mcp.payments import X402Middleware, X402Config
+    app = Starlette(routes=[Route("/sse", lambda r: PlainTextResponse("served"))])
+    app.add_middleware(X402Middleware, config=X402Config(enabled=False), verifier=verifier)
+    assert TestClient(app).get("/sse").status_code == 200
+
+
+# --------------------------------------------------------------------------- #
 # Regression tests from dogfooding real OSS repos
 # --------------------------------------------------------------------------- #
 def test_fastapi_constructor_prefix_and_annotated_alias_auth(tmp_path):
@@ -251,7 +315,7 @@ def test_sarif_report_structure():
     sarif = json.loads(report_to_sarif(report))
     assert sarif["version"] == "2.1.0"
     run = sarif["runs"][0]
-    assert run["tool"]["driver"]["name"] == "shadow-api-scanner"
+    assert run["tool"]["driver"]["name"] == "umbra"
     rule_ids = {r["id"] for r in run["tool"]["driver"]["rules"]}
     assert {"shadow-endpoint", "missing-auth"} <= rule_ids
     # Every shadow + missing-auth finding is represented as a result

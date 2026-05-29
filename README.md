@@ -1,6 +1,8 @@
-# Shadow API Scanner
+# Umbra
 
-A production-grade, highly-extensible DevSecOps static analysis tool that audits **FastAPI, Flask, Spring Boot, and Express** codebases. It automatically identifies undocumented "Shadow API" endpoints, detects endpoints completely lacking authentication middleware, attributes endpoints to the commit that introduced them ("what shipped this week?"), calculates API coverage ratios, and emits CI-native **SARIF** reports. It provides developer integrations (POSIX CLI, Remote SSE MCP Server, and Google Antigravity SDK).
+> Hunt the shadow APIs before attackers do.
+
+**Umbra** is a production-grade, highly-extensible DevSecOps static analysis tool that audits **FastAPI, Flask, Spring Boot, and Express** codebases. It automatically identifies undocumented "Shadow API" endpoints, detects endpoints completely lacking authentication middleware, attributes endpoints to the commit that introduced them ("what shipped this week?"), calculates API coverage ratios, and emits CI-native **SARIF** reports. It provides developer integrations (POSIX CLI, Remote SSE MCP Server, and Google Antigravity SDK).
 
 ## What's new
 
@@ -152,7 +154,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: your-org/shadow-api-scanner@v0.1.0
+      - uses: eliem08/umbra@v0.1.0
         with:
           path: ./src
           openapi: ./openapi.json
@@ -166,7 +168,7 @@ jobs:
 ```yaml
 # .pre-commit-config.yaml
 repos:
-  - repo: https://github.com/your-org/shadow-api-scanner
+  - repo: https://github.com/eliem08/umbra
     rev: v0.1.0
     hooks:
       - id: shadow-scan
@@ -210,3 +212,48 @@ excluded by default.
 2. AI agents connect to:
    - SSE connection endpoint: `http://localhost:8000/sse?token=my-secret-key-123`
    - Messages post endpoint: `http://localhost:8000/messages`
+
+---
+
+## Monetizing MCP access with x402
+
+Umbra ships an optional [x402](https://x402.org) payment gate so you can charge
+per call for hosted MCP access (HTTP 402 → pay → retry with `X-PAYMENT`). It is
+**off by default**; enable it with environment variables:
+
+```bash
+$env:UMBRA_X402_ENABLED="true"
+$env:UMBRA_X402_PAY_TO="0xYourReceivingWallet"     # required
+$env:UMBRA_X402_FACILITATOR="https://your-x402-facilitator"  # verifies/settles
+$env:UMBRA_X402_NETWORK="base"                     # e.g. base / base-sepolia
+$env:UMBRA_X402_AMOUNT="10000"                     # smallest unit (USDC: 10000 = 0.01)
+```
+
+When enabled, unpaid requests to `/sse` and `/messages` get a `402` with the
+payment requirements; paid requests (verified via your facilitator) are served
+with an `X-PAYMENT-RESPONSE` settlement header. The wallet and facilitator are
+**your** accounts — Umbra never hardcodes credentials, and the gate fails closed
+if `payTo` is unset. See [src/mcp/payments.py](src/mcp/payments.py).
+
+---
+
+## Deploy to Apify (and the Apify MCP marketplace)
+
+Umbra includes an Apify Actor definition ([.actor/](.actor/)). Two modes:
+
+- **Batch**: a normal run reads input (`path`, `openapi`, `since`, `strict`),
+  scans, and pushes endpoints to the default dataset (report + SARIF go to the
+  key-value store).
+- **Standby / MCP**: when run in Standby mode, the Actor serves the MCP SSE
+  server, so Umbra can be consumed as a tool via Apify's MCP marketplace. Token
+  auth and the x402 gate apply as usual.
+
+Publish with the Apify CLI:
+
+```bash
+npm i -g apify-cli
+apify login
+apify push     # builds .actor/Dockerfile and deploys to your Apify account
+```
+
+Entry: [src/apify/main.py](src/apify/main.py). Requires an Apify account.

@@ -1,5 +1,5 @@
-name: "Shadow API Scanner"
-description: "Find undocumented shadow endpoints and missing authentication across FastAPI, Flask, Spring Boot, and Express. Emits SARIF for code scanning."
+name: "Umbra Shadow API Scanner"
+description: "Umbra: find undocumented shadow endpoints and missing authentication across FastAPI, Flask, Spring Boot, and Express. Emits SARIF for code scanning."
 branding:
   icon: "shield"
   color: "purple"

@@ -1,0 +1,33 @@
+{
+  "title": "Umbra input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "path": {
+      "title": "Scan path",
+      "type": "string",
+      "description": "Directory or file to scan (a checked-out repo path inside the Actor).",
+      "editor": "textfield",
+      "default": "."
+    },
+    "openapi": {
+      "title": "OpenAPI spec",
+      "type": "string",
+      "description": "Path, URL, or raw JSON of the production openapi.json to compare against.",
+      "editor": "textfield"
+    },
+    "since": {
+      "title": "Git window",
+      "type": "string",
+      "description": "Only treat endpoints introduced in this window as new (e.g. '1 week ago', 'origin/main').",
+      "editor": "textfield"
+    },
+    "strict": {
+      "title": "Strict",
+      "type": "boolean",
+      "description": "Mark the run as failed if shadow/unauthenticated endpoints are found.",
+      "default": false
+    }
+  },
+  "required": []
+}

@@ -17,7 +17,7 @@ from src.engine.reporters import render_report
 console = Console()
 
 
-@click.command(name="shadow-scan")
+@click.command(name="umbra")
 @click.option(
     "--path",
     "-p",
@@ -91,7 +91,7 @@ def main(path, openapi, strict, since, new_only, report_format, output, config_p
 
     if text_mode:
         console.print(Panel(
-            Text("SHADOW API SCANNER - DevSecOps Posture Report", style="bold white", justify="center"),
+            Text("UMBRA - Shadow API Posture Report", style="bold white", justify="center"),
             style="bold cyan",
             box=ROUNDED
         ))

@@ -15,9 +15,9 @@ from typing import Dict, List
 
 from .schemas import RouteEndpoint, ScannerReport
 
-TOOL_NAME = "shadow-api-scanner"
+TOOL_NAME = "umbra"
 TOOL_VERSION = "0.1.0"
-INFO_URI = "https://github.com/your-org/shadow-api-scanner"
+INFO_URI = "https://github.com/eliem08/umbra"
 
 # Rule catalogue. `level` follows SARIF: error | warning | note.
 RULES = {

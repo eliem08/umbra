@@ -411,7 +411,7 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
 
 
 # --- FastAPI Host Application ---
-app = FastAPI(title="Shadow API Scanner MCP Host")
+app = FastAPI(title="Umbra MCP Host")
 
 # CORS: explicit allowlist via SHADOW_SCAN_CORS_ORIGINS (comma-separated).
 # Defaults to no cross-origin access. Wildcard "*" is permitted but, per the CORS
@@ -429,6 +429,12 @@ app.add_middleware(
 
 # Apply Token Verification Middleware
 app.add_middleware(TokenAuthMiddleware)
+
+# Optional x402 payment gate (monetize per-call MCP access). No-op unless
+# UMBRA_X402_ENABLED is set. Added after TokenAuth so it runs first on the
+# request path: pay, then authenticate.
+from src.mcp.payments import X402Middleware  # noqa: E402
+app.add_middleware(X402Middleware)
 
 # Initialize SSE Transport
 # POST requests go to /messages
