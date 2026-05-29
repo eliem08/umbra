@@ -1,26 +1,20 @@
 # Apify Actor image for Umbra.
 #
-# Use Apify's official Python base image: it ships the Apify SDK (apify, crawlee,
-# browserforge, pydantic, ...) pre-resolved to a mutually-compatible set. Building
-# the SDK by hand on a bare python image produced version skews
-# (pydantic >= 2.11, then crawlee<->browserforge), so we let Apify own that stack
-# and only add Node (runtime Express discovery), git (gitUrl clone), and Umbra.
-FROM apify/actor-python:3.12
+# The entry (umbra/apify/main.py) talks to the Apify REST API directly via httpx
+# and does NOT import the Apify Python SDK, so this image only needs Umbra's own
+# (clean, known-good) dependencies — no crawlee/browserforge/pydantic conflicts.
+# Node is for runtime-assisted Express discovery; git is for the gitUrl clone.
+FROM python:3.12-slim
 
-USER root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git nodejs npm \
     && rm -rf /var/lib/apt/lists/*
 
-COPY . ./
+WORKDIR /app
+COPY . /app
 
-# Install Umbra on top of the base image's pre-resolved Apify SDK. Do NOT pin
-# pydantic here: the base already ships a consistent apify/crawlee/browserforge/
-# pydantic set, and forcing a version makes pip downgrade and remove apify. pip's
-# default "only-if-needed" strategy keeps the base versions for Umbra's deps.
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir .
 
 # Batch run: scans input (gitUrl/path) and pushes results to the default dataset.
-# Standby run: Apify sets APIFY_META_ORIGIN=STANDBY and a port; the entry then
-# serves the MCP SSE server so it can be used via the Apify MCP marketplace.
+# Standby run: APIFY_META_ORIGIN=STANDBY -> serves the MCP SSE server.
 CMD ["python", "-m", "umbra.apify.main"]
