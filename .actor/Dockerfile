@@ -14,10 +14,11 @@ RUN apt-get update \
 
 COPY . ./
 
-# Install Umbra on top of the base SDK. Cap pydantic < 2.11 (a no-op on the base,
-# which already ships a compatible pydantic) so none of Umbra's own dependencies
-# upgrade it past the version crawlee/browserforge require.
-RUN pip install --no-cache-dir -e . "pydantic>=2,<2.11"
+# Install Umbra on top of the base image's pre-resolved Apify SDK. Do NOT pin
+# pydantic here: the base already ships a consistent apify/crawlee/browserforge/
+# pydantic set, and forcing a version makes pip downgrade and remove apify. pip's
+# default "only-if-needed" strategy keeps the base versions for Umbra's deps.
+RUN pip install --no-cache-dir -e .
 
 # Batch run: scans input (gitUrl/path) and pushes results to the default dataset.
 # Standby run: Apify sets APIFY_META_ORIGIN=STANDBY and a port; the entry then
