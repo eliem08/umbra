@@ -3,10 +3,22 @@
   "type": "object",
   "schemaVersion": 1,
   "properties": {
+    "gitUrl": {
+      "title": "Git repository URL",
+      "type": "string",
+      "description": "URL of a public git repository to clone and scan (e.g. https://github.com/org/repo.git). Takes precedence over 'path'.",
+      "editor": "textfield"
+    },
+    "gitBranch": {
+      "title": "Git branch",
+      "type": "string",
+      "description": "Optional branch/tag to clone. Defaults to the repository's default branch.",
+      "editor": "textfield"
+    },
     "path": {
       "title": "Scan path",
       "type": "string",
-      "description": "Directory or file to scan (a checked-out repo path inside the Actor).",
+      "description": "Directory or file to scan inside the Actor. Used only when no Git URL is provided.",
       "editor": "textfield",
       "default": "."
     },

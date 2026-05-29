@@ -187,6 +187,42 @@ def test_x402_enabled_requires_sdk_when_absent():
 
 
 # --------------------------------------------------------------------------- #
+# Apify Actor batch entry (gitUrl clone + scan)
+# --------------------------------------------------------------------------- #
+def test_apify_run_scan_path_passthrough():
+    from umbra.apify.main import _run_scan
+    out = _run_scan({"path": MOCK_DIR, "openapi": os.path.join(MOCK_DIR, "openapi.json")})
+    assert len(out["routes"]) == 6
+    assert out["report"] is not None
+    assert len(out["report"].shadow_endpoints) == 2
+
+
+@pytest.mark.skipif(not GIT_AVAILABLE, reason="git not installed")
+def test_apify_run_scan_clones_git_url(tmp_path):
+    """gitUrl is cloned (offline: a local repo) and scanned; temp clone is cleaned up."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True)
+
+    git("init")
+    git("config", "user.email", "dev@example.com")
+    git("config", "user.name", "Dev")
+    (repo / "app.py").write_text(
+        "from fastapi import FastAPI\napp = FastAPI()\n"
+        "@app.get('/cloned-route')\ndef c(): return {}\n"
+    )
+    git("add", "-A")
+    git("commit", "-m", "init")
+
+    from umbra.apify.main import _run_scan
+    out = _run_scan({"gitUrl": str(repo)})   # local path clones fine without network
+    paths = {r["path"] for r in out["routes"]}
+    assert "/cloned-route" in paths
+
+
+# --------------------------------------------------------------------------- #
 # Regression tests from dogfooding real OSS repos
 # --------------------------------------------------------------------------- #
 def test_fastapi_constructor_prefix_and_annotated_alias_auth(tmp_path):
