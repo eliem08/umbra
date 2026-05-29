@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "umbra-scan"
-version = "0.1.5"
+version = "0.1.6"
 description = "Umbra — hunt shadow APIs and missing auth across FastAPI, Flask, Spring Boot, and Express"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -41,9 +41,10 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0"
 ]
-# x402 micropayment gate for the MCP server (official SDK). Pin to the v2 line.
+# x402 micropayment gate for the MCP server (official SDK). Needs both the
+# FastAPI middleware and the EVM mechanism (Base/eip155 -> eth_abi/eth_account).
 x402 = [
-    "x402[fastapi]"
+    "x402[fastapi,evm]"
 ]
 
 [project.scripts]
