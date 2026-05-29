@@ -83,7 +83,7 @@ console = Console()
 )
 def main(path, openapi, strict, since, new_only, report_format, output, config_path, express_entry):
     """
-    Shadow API Scanner:
+    Umbra — hunt shadow APIs:
     Statically analyzes FastAPI/Flask/Spring Boot/Express codebases to identify
     undocumented shadow endpoints and missing authentication.
     """

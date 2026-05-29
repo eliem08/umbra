@@ -72,7 +72,7 @@ auth:
 - **Pydantic V2 schemas (`umbra/engine/schemas.py`)**: Strong typing and validation utilizing Pydantic V2 standard features.
 
 ### 2. Tier 2: Developer CLI
-- **Sleek CLI Terminal (`umbra/cli/main.py`)**: Exposes the `shadow-scan` command.
+- **Sleek CLI Terminal (`umbra/cli/main.py`)**: Exposes the `umbra` command (with `shadow-scan` alias).
 - Displays a `rich` ANSI colored dashboard highlighting shadow endpoints and security posture.
 - **Pre-Commit Enforcement**: Supports `--strict` flag. Exits with status code `1` if any undocumented APIs or auth-less endpoints are detected, blocking commits or CI/CD pipelines.
 
@@ -93,17 +93,21 @@ auth:
 
 ---
 
-## Installation & Setup
+## Installation
 
-1. Install dependencies:
-   ```bash
-   pip install -e .
-   ```
+```bash
+pip install umbra-scan
+```
 
-2. Run the test suite:
-   ```bash
-   python -m pytest tests/test_scanner.py -v
-   ```
+This installs the `umbra` command (with `shadow-scan` as an alias). For
+runtime-assisted Express discovery you also need Node.js on PATH.
+
+### From source (development)
+
+```bash
+pip install -e .
+python -m pytest tests/ -v
+```
 
 ---
 
@@ -111,27 +115,27 @@ auth:
 
 Run the scanner locally against the provided mock project:
 ```bash
-shadow-scan --path tests/mock_project --openapi tests/mock_project/openapi.json
+umbra --path tests/mock_project --openapi tests/mock_project/openapi.json
 ```
 
 To run as a pre-commit block in strict CI/CD pipelines:
 ```bash
-shadow-scan --path tests/mock_project --openapi tests/mock_project/openapi.json --strict
+umbra --path tests/mock_project --openapi tests/mock_project/openapi.json --strict
 ```
 
 Scan a polyglot directory (Python + Java + JavaScript) and emit SARIF for GitHub code scanning:
 ```bash
-shadow-scan --path ./src --openapi ./openapi.json --format sarif --output results.sarif
+umbra --path ./src --openapi ./openapi.json --format sarif --output results.sarif
 ```
 
 Gate only on endpoints introduced this week that are undocumented or unauthenticated:
 ```bash
-shadow-scan --path ./ --openapi ./openapi.json --since "1 week ago" --new-only --strict
+umbra --path ./ --openapi ./openapi.json --since "1 week ago" --new-only --strict
 ```
 
 Use runtime-assisted discovery for an Express service (catches dynamically-registered routes):
 ```bash
-shadow-scan --path ./services/api --openapi ./openapi.json --express-entry ./services/api/server.js
+umbra --path ./services/api --openapi ./openapi.json --express-entry ./services/api/server.js
 ```
 
 ---
