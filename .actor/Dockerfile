@@ -7,13 +7,15 @@
 FROM python:3.12-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git nodejs npm \
+    && apt-get install -y --no-install-recommends git nodejs npm build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY . /app
 
-RUN pip install --no-cache-dir .
+# Install Umbra with the x402 extra so the payment gate can be enabled via env.
+# build-essential covers any C-extension deps in the x402/web3 stack that lack wheels.
+RUN pip install --no-cache-dir ".[x402]"
 
 # Batch run: scans input (gitUrl/path) and pushes results to the default dataset.
 # Standby run: APIFY_META_ORIGIN=STANDBY -> serves the MCP SSE server.
