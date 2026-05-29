@@ -31,7 +31,7 @@ auth:
 ```
 ├── .agents/
 │   └── skills/           # Antigravity Skills directory
-├── src/
+├── umbra/
 │   ├── __init__.py
 │   ├── engine/
 │   │   ├── __init__.py
@@ -66,18 +66,18 @@ auth:
 ## Key Features
 
 ### 1. Tier 1: Core AST Engine
-- **AST Parsing (`src/engine/parser.py`)**: Uses Python's native `ast` module to scan Python source files recursively. It identifies path parameters (e.g. `{id}`, `<int:id>`) and extracts HTTP verbs. It checks for authentication dependencies (FastAPI `Depends`/`Security` in function signatures or decorators, Flask authentication decorators).
-- **Endpoint Registry Matching (`src/engine/matcher.py`)**: Compares parsed routes against a production `openapi.json` definition. Normalizes path variables to compute the documentation path coverage ratio:
+- **AST Parsing (`umbra/engine/parser.py`)**: Uses Python's native `ast` module to scan Python source files recursively. It identifies path parameters (e.g. `{id}`, `<int:id>`) and extracts HTTP verbs. It checks for authentication dependencies (FastAPI `Depends`/`Security` in function signatures or decorators, Flask authentication decorators).
+- **Endpoint Registry Matching (`umbra/engine/matcher.py`)**: Compares parsed routes against a production `openapi.json` definition. Normalizes path variables to compute the documentation path coverage ratio:
   $$C = \frac{|E_{\text{parsed}} \cap E_{\text{registry}}|}{|E_{\text{parsed}}|}$$
-- **Pydantic V2 schemas (`src/engine/schemas.py`)**: Strong typing and validation utilizing Pydantic V2 standard features.
+- **Pydantic V2 schemas (`umbra/engine/schemas.py`)**: Strong typing and validation utilizing Pydantic V2 standard features.
 
 ### 2. Tier 2: Developer CLI
-- **Sleek CLI Terminal (`src/cli/main.py`)**: Exposes the `shadow-scan` command.
+- **Sleek CLI Terminal (`umbra/cli/main.py`)**: Exposes the `shadow-scan` command.
 - Displays a `rich` ANSI colored dashboard highlighting shadow endpoints and security posture.
 - **Pre-Commit Enforcement**: Supports `--strict` flag. Exits with status code `1` if any undocumented APIs or auth-less endpoints are detected, blocking commits or CI/CD pipelines.
 
 ### 3. Tier 3: Remote Server-Sent Events (SSE) MCP Server
-- **Multi-Tenant HTTP SSE Server (`src/mcp/server.py`)**: Built over FastAPI using the official `mcp` SDK.
+- **Multi-Tenant HTTP SSE Server (`umbra/mcp/server.py`)**: Built over FastAPI using the official `mcp` SDK.
 - **Robust Token Authorization Middleware**: Enforces validation of token-based authentication via `Authorization: Bearer <token>` headers or a `?token=<token>` query string parameter.
 - **Explicit Schema Handlers**: Exposes tools with clear descriptions to prevent LLM hallucinations:
   1. `scan_codebase(path: str)`: Scans the codebase path (Python/Java/JavaScript) and returns routes.
@@ -87,7 +87,7 @@ auth:
 - **Hardened transport**: Token auth fails closed (no default token), uses constant-time comparison, supports rotation via `SHADOW_SCAN_TOKENS`, and restricts CORS to an explicit allowlist via `SHADOW_SCAN_CORS_ORIGINS`.
 
 ### 4. Google Antigravity SDK Integration
-- **Agent Bridge (`src/engine/agent_bridge.py`)**: Exposes custom tools and policies.
+- **Agent Bridge (`umbra/engine/agent_bridge.py`)**: Exposes custom tools and policies.
 - **Declarative Safety Policies**: Restricts agent commands: `deny("*")`, `allow("view_file")`, `allow("parse_routes")`, and `ask_user("apply_remediation")` requiring explicit human approval.
 - **Transform Lifecycle Hook**: Intercepts tool outputs to recursively redact hardcoded secrets, JWT tokens, and PII (emails) before sending data to the LLM.
 
@@ -206,7 +206,7 @@ excluded by default.
    ```bash
    # Set the token for authorized scanners
    $env:SHADOW_SCAN_TOKEN="my-secret-key-123"
-   python -m uvicorn src.mcp.server:app --port 8000 --reload
+   python -m uvicorn umbra.mcp.server:app --port 8000 --reload
    ```
 
 2. AI agents connect to:
@@ -233,7 +233,7 @@ When enabled, unpaid requests to `/sse` and `/messages` get a `402` with the
 payment requirements; paid requests (verified via your facilitator) are served
 with an `X-PAYMENT-RESPONSE` settlement header. The wallet and facilitator are
 **your** accounts — Umbra never hardcodes credentials, and the gate fails closed
-if `payTo` is unset. See [src/mcp/payments.py](src/mcp/payments.py).
+if `payTo` is unset. See [umbra/mcp/payments.py](umbra/mcp/payments.py).
 
 ---
 
@@ -256,4 +256,4 @@ apify login
 apify push     # builds .actor/Dockerfile and deploys to your Apify account
 ```
 
-Entry: [src/apify/main.py](src/apify/main.py). Requires an Apify account.
+Entry: [umbra/apify/main.py](umbra/apify/main.py). Requires an Apify account.

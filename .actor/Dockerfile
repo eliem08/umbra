@@ -16,4 +16,4 @@ RUN pip install --no-cache-dir -e . \
 # Batch run: scans input and pushes results to the default dataset.
 # Standby run: Apify sets APIFY_META_ORIGIN=STANDBY and a port; the entry then
 # serves the MCP SSE server so it can be used via the Apify MCP marketplace.
-CMD ["python", "-m", "src.apify.main"]
+CMD ["python", "-m", "umbra.apify.main"]

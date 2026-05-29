@@ -16,11 +16,11 @@ from mcp.server.sse import SseServerTransport
 from mcp.server.models import InitializationOptions
 import mcp.types as types
 
-from src.engine.parser import ASTParser, normalize_path
-from src.engine.matcher import OpenAPIMatcher
-from src.engine.schemas import RouteEndpoint, ScanResult
-from src.engine.scanner import scan_path
-from src.engine.gitdiff import annotate_new_endpoints, GitError
+from umbra.engine.parser import ASTParser, normalize_path
+from umbra.engine.matcher import OpenAPIMatcher
+from umbra.engine.schemas import RouteEndpoint, ScanResult
+from umbra.engine.scanner import scan_path
+from umbra.engine.gitdiff import annotate_new_endpoints, GitError
 
 # Setup Logger
 logging.basicConfig(level=logging.INFO)
@@ -433,7 +433,7 @@ app.add_middleware(TokenAuthMiddleware)
 # Optional x402 payment gate (monetize per-call MCP access). No-op unless
 # UMBRA_X402_ENABLED is set. Added after TokenAuth so it runs first on the
 # request path: pay, then authenticate.
-from src.mcp.payments import X402Middleware  # noqa: E402
+from umbra.mcp.payments import X402Middleware  # noqa: E402
 app.add_middleware(X402Middleware)
 
 # Initialize SSE Transport

@@ -37,12 +37,12 @@ dev = [
 ]
 
 [project.scripts]
-umbra = "src.cli.main:main"
-shadow-scan = "src.cli.main:main"
+umbra = "umbra.cli.main:main"
+shadow-scan = "umbra.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["umbra*"]
 
 [tool.setuptools.package-data]
-"src.engine.runtime" = ["*.js"]
+"umbra.engine.runtime" = ["*.js"]

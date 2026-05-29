@@ -7,11 +7,11 @@ from rich.table import Table
 from rich.text import Text
 from rich.box import ROUNDED
 
-from src.engine.scanner import scan_path
-from src.engine.matcher import OpenAPIMatcher
-from src.engine.authconfig import load_auth_config
-from src.engine.gitdiff import annotate_new_endpoints, GitError
-from src.engine.reporters import render_report
+from umbra.engine.scanner import scan_path
+from umbra.engine.matcher import OpenAPIMatcher
+from umbra.engine.authconfig import load_auth_config
+from umbra.engine.gitdiff import annotate_new_endpoints, GitError
+from umbra.engine.reporters import render_report
 
 # Global console instance for stdout
 console = Console()

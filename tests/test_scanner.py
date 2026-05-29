@@ -4,12 +4,12 @@ import pytest
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-from src.engine.parser import ASTParser, normalize_path
-from src.engine.matcher import OpenAPIMatcher
-from src.engine.schemas import RouteEndpoint, ScanResult
-from src.engine.agent_bridge import redact_payload, redact_text, redact_credentials_hook
-from src.cli.main import main as cli_main
-from src.mcp.server import app as mcp_app, server as mcp_server, handle_list_tools, handle_call_tool
+from umbra.engine.parser import ASTParser, normalize_path
+from umbra.engine.matcher import OpenAPIMatcher
+from umbra.engine.schemas import RouteEndpoint, ScanResult
+from umbra.engine.agent_bridge import redact_payload, redact_text, redact_credentials_hook
+from umbra.cli.main import main as cli_main
+from umbra.mcp.server import app as mcp_app, server as mcp_server, handle_list_tools, handle_call_tool
 
 # Path helper for mock project files
 MOCK_DIR = os.path.join(os.path.dirname(__file__), "mock_project")

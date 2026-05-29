@@ -4,15 +4,15 @@ import shutil
 import subprocess
 import pytest
 
-from src.engine.scanner import scan_path
-from src.engine.spring import SpringParser
-from src.engine.express import ExpressParser
-from src.engine.express_runtime import discover_express_routes, RuntimeDiscoveryError, node_available
-from src.engine.authconfig import AuthConfig, load_auth_config
-from src.engine.reporters import report_to_sarif, render_report
-from src.engine.matcher import OpenAPIMatcher
-from src.engine.gitdiff import GitInspector, annotate_new_endpoints, GitError
-from src.engine.schemas import ScanResult
+from umbra.engine.scanner import scan_path
+from umbra.engine.spring import SpringParser
+from umbra.engine.express import ExpressParser
+from umbra.engine.express_runtime import discover_express_routes, RuntimeDiscoveryError, node_available
+from umbra.engine.authconfig import AuthConfig, load_auth_config
+from umbra.engine.reporters import report_to_sarif, render_report
+from umbra.engine.matcher import OpenAPIMatcher
+from umbra.engine.gitdiff import GitInspector, annotate_new_endpoints, GitError
+from umbra.engine.schemas import ScanResult
 
 POLY_DIR = os.path.join(os.path.dirname(__file__), "mock_polyglot")
 MOCK_DIR = os.path.join(os.path.dirname(__file__), "mock_project")
@@ -151,7 +151,7 @@ def _x402_app(verifier, **cfg_kw):
     from starlette.responses import PlainTextResponse
     from starlette.routing import Route
     from fastapi.testclient import TestClient
-    from src.mcp.payments import X402Middleware, X402Config
+    from umbra.mcp.payments import X402Middleware, X402Config
 
     async def ok(request):
         return PlainTextResponse("served")
@@ -200,7 +200,7 @@ def test_x402_disabled_by_default():
     from starlette.responses import PlainTextResponse
     from starlette.routing import Route
     from fastapi.testclient import TestClient
-    from src.mcp.payments import X402Middleware, X402Config
+    from umbra.mcp.payments import X402Middleware, X402Config
     app = Starlette(routes=[Route("/sse", lambda r: PlainTextResponse("served"))])
     app.add_middleware(X402Middleware, config=X402Config(enabled=False), verifier=verifier)
     assert TestClient(app).get("/sse").status_code == 200
@@ -381,7 +381,7 @@ def test_git_inspector_rejects_non_repo(tmp_path):
 # MCP server hardening
 # --------------------------------------------------------------------------- #
 def test_mcp_token_helpers(monkeypatch):
-    import src.mcp.server as srv
+    import umbra.mcp.server as srv
 
     # No token configured -> fail closed
     monkeypatch.delenv("SHADOW_SCAN_TOKEN", raising=False)
@@ -401,7 +401,7 @@ def test_mcp_token_helpers(monkeypatch):
 def test_mcp_fail_closed_without_token(monkeypatch):
     """With no token configured, the SSE endpoint must reject (not silently allow)."""
     from fastapi.testclient import TestClient
-    import src.mcp.server as srv
+    import umbra.mcp.server as srv
 
     monkeypatch.delenv("SHADOW_SCAN_TOKEN", raising=False)
     monkeypatch.delenv("SHADOW_SCAN_TOKENS", raising=False)
@@ -414,7 +414,7 @@ def test_mcp_fail_closed_without_token(monkeypatch):
 @pytest.mark.skipif(not GIT_AVAILABLE, reason="git not installed")
 @pytest.mark.asyncio
 async def test_mcp_list_new_unauthenticated(tmp_path):
-    from src.mcp.server import handle_call_tool
+    from umbra.mcp.server import handle_call_tool
 
     repo = tmp_path / "repo"
     repo.mkdir()

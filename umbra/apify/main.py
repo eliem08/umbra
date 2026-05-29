@@ -19,10 +19,10 @@ from __future__ import annotations
 
 import os
 
-from src.engine.scanner import scan_path
-from src.engine.matcher import OpenAPIMatcher
-from src.engine.gitdiff import annotate_new_endpoints, GitError
-from src.engine.reporters import report_to_sarif, report_to_json
+from umbra.engine.scanner import scan_path
+from umbra.engine.matcher import OpenAPIMatcher
+from umbra.engine.gitdiff import annotate_new_endpoints, GitError
+from umbra.engine.reporters import report_to_sarif, report_to_json
 
 
 def _is_standby() -> bool:
@@ -38,7 +38,7 @@ def _serve_mcp() -> None:
         or os.environ.get("PORT")
         or 8000
     )
-    uvicorn.run("src.mcp.server:app", host="0.0.0.0", port=port)
+    uvicorn.run("umbra.mcp.server:app", host="0.0.0.0", port=port)
 
 
 def _run_scan(inp: dict) -> dict:
